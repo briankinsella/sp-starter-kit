@@ -3,23 +3,19 @@ import * as ReactDOM from 'react-dom';
 import { BaseDialog, IDialogConfiguration } from '@microsoft/sp-dialog';
 import {
   autobind,
-  DatePicker,
   PrimaryButton,
   CommandButton,
   TextField,
-  Label,
   Dropdown,
-  DropdownMenuItemType,
   IDropdownOption,
   DialogFooter,
   DialogContent
 } from 'office-ui-fabric-react';
 
 import { DateTimePicker } from './DateTimePicker';
-import { ExtensionContext } from '@microsoft/sp-extension-base';
+import { ListViewCommandSetContext } from '@microsoft/sp-listview-extensibility';
 import { Dialog } from '@microsoft/sp-dialog';
-import { AadHttpClient, HttpClientConfiguration, IHttpClientOptions, HttpClientResponse } from "@microsoft/sp-http";
-import { MSGraphClient } from '@microsoft/sp-client-preview';
+import { MSGraphClient } from "@microsoft/sp-http";
 
 import styles from './ScheduleMeetingDialog.module.scss';
 import * as strings from 'DiscussNowCommandSetStrings';
@@ -147,7 +143,7 @@ class ScheduleMeetingDialogContent extends
 export default class ScheduleMeetingDialog extends BaseDialog {
     public fileName: string;
     public filePath: string;
-    public context: ExtensionContext;
+    public context: ListViewCommandSetContext;
 
     public render(): void {
       ReactDOM.render(<ScheduleMeetingDialogContent
@@ -171,7 +167,7 @@ export default class ScheduleMeetingDialog extends BaseDialog {
       // schedule the meeting with Microsoft Graph
       // *******************************************
 
-      let response: HttpClientResponse = null;
+      let response: any = null;
       const startDateTimeISO: string = dateTime.toISOString();
 
       // calculate the end date time
@@ -220,40 +216,17 @@ export default class ScheduleMeetingDialog extends BaseDialog {
           }
         };
 
-        let meetingCreated: boolean = false;
-
-        const aadClient: AadHttpClient = new AadHttpClient(
-          this.context.serviceScope,
-          "https://graph.microsoft.com"
-        );
-
-        const requestHeaders: Headers = new Headers();
-        requestHeaders.append('Content-Type', 'application/json');
-        requestHeaders.append('Accept', 'application/json');
-
-        const requestOptions: IHttpClientOptions = {
-          body: JSON.stringify(newMeetingRequest),
-          headers: requestHeaders,
-        };
-
-        response = await aadClient.post(`https://graph.microsoft.com/v1.0/groups/${groupId}/calendar/events`,
-          AadHttpClient.configurations.v1,
-          requestOptions);
-
-        // const graphClient: MSGraphClient = this.context.serviceScope.consume(MSGraphClient.serviceKey);
-
-        // response = await graphClient
-        //   .api(`groups/${groupId}/calendar/events`)
-        //   .version("1.0")
-        //   .post(newMeetingRequest);
+        const graphClient: MSGraphClient = await this.context.msGraphClientFactory.getClient();
+        response = await graphClient
+          .api(`groups/${groupId}/calendar/events`)
+          .version("v1.0")
+          .post(newMeetingRequest);
       }
 
-      if (response && response.status < 400) {
+      if (response && response.id) {
         Dialog.alert(`Meeting "${subject}" has been successfully created.`);
-        console.log(await response.json());
       } else {
         Dialog.alert(`Failed to create meeting "${subject}"!`);
-        console.log(await response.json());
       }
 
       this.close();
